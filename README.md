@@ -9,3 +9,5 @@
 * Daniel
 
 ## Preprocessing Data 
+
+The data is preloaded in LAB format
