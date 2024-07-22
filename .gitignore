@@ -1,5 +1,10 @@
-.venv
-a
-lb
+.venv*
+l
+ab
 *.npy
 *.zip
+wandb
+new_data
+*.pth
+!model_final.pth
+__pycache__
