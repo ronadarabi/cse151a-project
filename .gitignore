@@ -3,8 +3,9 @@ l
 ab
 *.npy
 *.zip
+*net
 wandb
 new_data
 *.pth
-!model_final.pth
 __pycache__
+.vscode
