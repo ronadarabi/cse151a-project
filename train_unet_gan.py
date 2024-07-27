@@ -235,7 +235,9 @@ def train_model(
 
         total_time_spent = step_end_time - start_time
         avg_step_time = total_time_spent / (step + 1)
-        etc = avg_step_time * (num_steps - (step + 1))
+        etc_seconds = avg_step_time * (num_steps - (step + 1))
+        etc_hours = int(etc_seconds // 3600)
+        etc_minutes = int((etc_seconds % 3600) // 60)
         time_to_next_checkpoint = avg_step_time * (
             validation_steps - (step % validation_steps)
         )
@@ -245,18 +247,18 @@ def train_model(
             f"Loss G: {loss_G.item():.4f}, "
             f"Loss D: {loss_D.item():.4f}, "
             f"Step Time: {step_time:.4f}s, "
-            f"ETC: {etc/3600:.2f} hours, "
+            f"ETC: {etc_hours}h {etc_minutes}m, "
             f"Next Checkpoint: {time_to_next_checkpoint/60:.2f} minutes"
         )
         wandb.log(
             {
-                "Training Loss G": loss_G.item(),
-                "Training Loss D": loss_D.item(),
+                "Generator Loss": loss_G.item(),
+                "Discriminator Loss": loss_D.item(),
                 "Step": step + 1,
                 "Step Time": step_time,
                 "Learning Rate G": scheduler_G.get_last_lr()[0],
                 "Learning Rate D": scheduler_D.get_last_lr()[0],
-                "ETC (hours)": etc / 3600,
+                "ETC (hours)": etc_seconds / 3600,
                 "Time to Next Checkpoint (minutes)": time_to_next_checkpoint / 60,
             }
         )
@@ -312,7 +314,7 @@ def train_model(
 
     validate_model(model, test_dataloader)
 
-    torch.save(model.state_dict(), "model_unet_gan_final.pth")
+    torch.save(model.state_dict(), "model_final_unet_gan.pth")
 
 
 if __name__ == "__main__":
