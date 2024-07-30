@@ -9,3 +9,4 @@ new_data
 *.pth
 __pycache__
 .vscode
+*.jpg

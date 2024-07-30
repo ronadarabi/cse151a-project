@@ -2,15 +2,11 @@ import multiprocessing
 import os
 import numpy as np
 import torch
-import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
-import torch.optim as optim
-from torch.cuda.amp import autocast, GradScaler
 from PIL import Image
 import wandb
 import time
 from dataclasses import dataclass, asdict
-from torch.optim.lr_scheduler import LambdaLR
 
 from model import MainModel
 from unet import Unet
@@ -20,23 +16,27 @@ from utils import rgb_to_lab, lab_to_rgb
 @dataclass
 class ModelSettings:
     use_pretrained: bool = True
-    pretrained_path: str = "unet/model_unet_final_percpt.pth"
-    perception_loss_weight: float = 0.1
+    pretrained_path: str = "unet_attn/model_unet_final.pth"
+    l1_loss_weight: float = 100.0
+    gan_loss_weight: float = 1.0
+    generator_lr: float = 2e-4
+    discriminator_lr: float = 2e-4
+    beta1: float = 0.5
+    beta2: float = 0.999
     total_image_count: int = 1012019
-    validation_image_count: int = 12
+    validation_image_count: int = 24
     batch_size: int = 32
     num_steps: int = (total_image_count - validation_image_count) // batch_size
-    learning_rate: float = 0.0002
-    min_lr: float = learning_rate / 10
-    weight_decay: float = 1e-5
     warmup_steps: int = 1000
     validation_steps: int = 1000
     display_imgs: int = 12
-    early_stopping_patience: int = 5
     model_name: str = "Unet-GAN"
+    gan_mode: str = "vanilla"
 
     def create_run_name(self):
-        return f"{self.model_name}_lr{self.learning_rate}_bs{self.batch_size}_steps{self.num_steps}"
+        if self.use_pretrained:
+            return f"{self.model_name}_pretrained_bs{self.batch_size}_steps{self.num_steps}"
+        return f"{self.model_name}_bs{self.batch_size}_steps{self.num_steps}"
 
 
 class ColorizationDataset(Dataset):
@@ -80,22 +80,6 @@ class FastColorizationDataLoader(DataLoader):
                 yield [item.cuda(non_blocking=True) for item in data]
 
 
-def lr_lambda(current_step: int):
-    if current_step < settings.warmup_steps:
-        return float(current_step) / float(max(1, settings.warmup_steps))
-    cosine_decay = 0.5 * (
-        1
-        + np.cos(
-            np.pi
-            * (current_step - settings.warmup_steps)
-            / (settings.num_steps - settings.warmup_steps)
-        )
-    )
-    return (
-        settings.min_lr + (settings.learning_rate - settings.min_lr) * cosine_decay
-    ) / settings.learning_rate
-
-
 def validate_model(model, test_dataloader):
     torch.cuda.synchronize()
     val_start_time = time.time()
@@ -105,14 +89,13 @@ def validate_model(model, test_dataloader):
     total_images = 0
     logged_images = 0
 
-    with torch.inference_mode():
+    with torch.no_grad():
         for l_chan, ab_chan in test_dataloader:
             l_chan, ab_chan = l_chan.to(device), ab_chan.to(device)
 
             model.setup_input(l_chan, ab_chan)
             model.forward()
 
-            # Compute losses without backward passes
             loss_D = model.compute_D_loss()
             loss_G = model.compute_G_loss()
 
@@ -174,10 +157,6 @@ def train_model(
     model,
     train_dataloader,
     test_dataloader,
-    optimizer_G,
-    optimizer_D,
-    scheduler_G,
-    scheduler_D,
     num_steps,
     validation_steps,
 ):
@@ -186,9 +165,7 @@ def train_model(
     model.train()
     step_times = []
     best_val_loss = float("inf")
-    patience_counter = 0
 
-    scaler = GradScaler()
     train_iter = iter(train_dataloader)
 
     for step in range(num_steps):
@@ -200,29 +177,23 @@ def train_model(
 
         l_chan, ab_chan = l_chan.to(device), ab_chan.to(device)
 
-        with autocast():
-            model.setup_input(l_chan, ab_chan)
-            model.forward()
+        # Update Discriminator
+        model.set_requires_grad(model.net_D, True)
+        model.opt_D.zero_grad(set_to_none=True)
+        model.setup_input(l_chan, ab_chan)
+        model.forward()
+        loss_D = model.compute_D_loss()
+        loss_D.backward()
+        torch.nn.utils.clip_grad_norm_(model.net_D.parameters(), max_norm=1.0)
+        model.opt_D.step()
 
-        # Update D
-        optimizer_D.zero_grad(set_to_none=True)
-        with autocast():
-            loss_D = model.compute_D_loss()
-        scaler.scale(loss_D).backward()
-        scaler.step(optimizer_D)
-
-        # Update G
-        optimizer_G.zero_grad(set_to_none=True)
-        with autocast():
-            loss_G = model.compute_G_loss()
-        scaler.scale(loss_G).backward()
-        scaler.step(optimizer_G)
-
-        scaler.update()
-
-        # Step the schedulers after the optimizers
-        scheduler_D.step()
-        scheduler_G.step()
+        # Update Generator
+        model.set_requires_grad(model.net_D, False)
+        model.opt_G.zero_grad(set_to_none=True)
+        loss_G = model.compute_G_loss()
+        loss_G.backward()
+        torch.nn.utils.clip_grad_norm_(model.net_G.parameters(), max_norm=1.0)
+        model.opt_G.step()
 
         torch.cuda.synchronize()
         step_end_time = time.time()
@@ -242,6 +213,16 @@ def train_model(
             validation_steps - (step % validation_steps)
         )
 
+        if model.loss_G_GAN is not None:
+            loss_G_GAN = model.loss_G_GAN.item()
+        else:
+            loss_G_GAN = 0.0
+
+        if model.loss_G_L1 is not None:
+            loss_G_L1 = model.loss_G_L1.item()
+        else:
+            loss_G_L1 = 0.0
+
         print(
             f"Step [{step + 1}/{num_steps}], "
             f"Loss G: {loss_G.item():.4f}, "
@@ -250,18 +231,21 @@ def train_model(
             f"ETC: {etc_hours}h {etc_minutes}m, "
             f"Next Checkpoint: {time_to_next_checkpoint/60:.2f} minutes"
         )
-        wandb.log(
-            {
-                "Generator Loss": loss_G.item(),
-                "Discriminator Loss": loss_D.item(),
-                "Step": step + 1,
-                "Step Time": step_time,
-                "Learning Rate G": scheduler_G.get_last_lr()[0],
-                "Learning Rate D": scheduler_D.get_last_lr()[0],
-                "ETC (hours)": etc_seconds / 3600,
-                "Time to Next Checkpoint (minutes)": time_to_next_checkpoint / 60,
-            }
-        )
+
+        log_dict = {
+            "Generator Loss": loss_G,
+            "Generator Loss GAN": loss_G_GAN,
+            "Generator Loss L1": loss_G_L1,
+            "Discriminator Loss": loss_D,
+            "Discriminator Loss Real": model.loss_D_real.item(),
+            "Discriminator Loss Fake": model.loss_D_fake.item(),
+            "Step": step + 1,
+            "Step Time": step_time,
+            "ETC (hours)": etc_seconds / 3600,
+            "Time to Next Checkpoint (minutes)": time_to_next_checkpoint / 60,
+        }
+
+        wandb.log(log_dict)
 
         if (step + 1) % validation_steps == 0:
             model.eval()
@@ -270,40 +254,28 @@ def train_model(
 
             if val_loss < best_val_loss:
                 best_val_loss = val_loss
-                patience_counter = 0
                 torch.save(
                     {
                         "step": step + 1,
                         "model_state_dict": model.state_dict(),
-                        "optimizer_G_state_dict": optimizer_G.state_dict(),
-                        "optimizer_D_state_dict": optimizer_D.state_dict(),
-                        "scheduler_G_state_dict": scheduler_G.state_dict(),
-                        "scheduler_D_state_dict": scheduler_D.state_dict(),
+                        "optimizer_G_state_dict": model.opt_G.state_dict(),
+                        "optimizer_D_state_dict": model.opt_D.state_dict(),
                         "loss_G": loss_G.item(),
                         "loss_D": loss_D.item(),
                     },
                     f"best_checkpoint_unet_gan.pth",
                 )
-            else:
-                patience_counter += 1
-                if patience_counter >= settings.early_stopping_patience:
-                    print(
-                        f"Early stopping triggered after {patience_counter} validations without improvement."
-                    )
-                    break
-
+                
             torch.save(
                 {
                     "step": step + 1,
                     "model_state_dict": model.state_dict(),
-                    "optimizer_G_state_dict": optimizer_G.state_dict(),
-                    "optimizer_D_state_dict": optimizer_D.state_dict(),
-                    "scheduler_G_state_dict": scheduler_G.state_dict(),
-                    "scheduler_D_state_dict": scheduler_D.state_dict(),
+                    "optimizer_G_state_dict": model.opt_G.state_dict(),
+                    "optimizer_D_state_dict": model.opt_D.state_dict(),
                     "loss_G": loss_G.item(),
                     "loss_D": loss_D.item(),
                 },
-                f"checkpoint_unet_gan.pth",
+                f"checkpoint_unet_gan_{step + 1}.pth",
             )
 
     torch.cuda.synchronize()
@@ -329,7 +301,7 @@ if __name__ == "__main__":
     wandb.config.update(asdict(settings))
     wandb.run.name = settings.create_run_name()
 
-    root_dir = "new_data"
+    root_dir = "img_data"
 
     dataset = ColorizationDataset(root_dir=root_dir)
     train_size = settings.total_image_count - settings.validation_image_count
@@ -359,26 +331,26 @@ if __name__ == "__main__":
         print(f"Loaded pretrained model from {settings.pretrained_path}")
 
     model = MainModel(
-        net_G=pretrained_unet, lambda_percep=settings.perception_loss_weight
+        net_G=pretrained_unet,
+        lr_G=settings.generator_lr,
+        lr_D=settings.discriminator_lr,
+        beta1=settings.beta1,
+        beta2=settings.beta2,
+        lambda_L1=settings.l1_loss_weight,
+        lambda_GAN=settings.gan_loss_weight,
+        gan_mode=settings.gan_mode,
     ).to(device)
     wandb.watch(model)
 
     print(model)
 
-    optimizer_G = model.opt_G
-    optimizer_D = model.opt_D
-
-    scheduler_G = LambdaLR(optimizer_G, lr_lambda)
-    scheduler_D = LambdaLR(optimizer_D, lr_lambda)
+    print(f"Generator Parameters: {sum(p.numel() for p in model.net_G.parameters())}")
+    print(f"Discriminator Parameters: {sum(p.numel() for p in model.net_D.parameters())}")
 
     train_model(
         model,
         train_dataloader,
         test_dataloader,
-        optimizer_G,
-        optimizer_D,
-        scheduler_G,
-        scheduler_D,
         settings.num_steps,
         settings.validation_steps,
     )

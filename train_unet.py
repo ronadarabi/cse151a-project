@@ -12,25 +12,27 @@ import time
 from dataclasses import dataclass, asdict
 from torch.optim.lr_scheduler import LambdaLR
 import multiprocessing
+import gc
 
-from perception_loss import PerceptionLoss
 from unet import Unet
 from utils import rgb_to_lab, lab_to_rgb
 
 
+def count_parameters(model):
+    return sum(p.numel() for p in model.parameters() if p.requires_grad)
+
+
 @dataclass
 class ModelSettings:
-    finetune: bool = False
-    pretrained_model_path: str = "unet/model_final_unet.pth"
-    perception_loss_weight: float = 0.01
-    finetune_learning_rate: float = 0.00035
+    finetune: bool = True
+    pretrained_model_path: str = "unet_attn_finetune/model_unet_final.pth"
+    finetune_learning_rate: float = 0.00035 / 4
     total_image_count: int = 1012019
     validation_image_count: int = 1024
-    batch_size: int = 16
+    batch_size: int = 64
     num_steps: int = (total_image_count - validation_image_count) // batch_size
     learning_rate: float = 0.0007  # Peak LR
     min_lr: float = learning_rate / 10  # Minimum LR
-    perception_loss_weight: float = 0.01
     weight_decay: float = 1e-5
     warmup_steps: int = 1000  # Linear warmup over n steps
     validation_steps: int = 1000  # Validate every n steps
@@ -42,7 +44,8 @@ class ModelSettings:
 
     def create_run_name(self):
         prefix = "finetune_" if self.finetune else ""
-        return f"{prefix}{self.model_name}_lr{self.learning_rate}_bs{self.batch_size}_steps{self.num_steps}_loss{self.loss_function}_opt{self.optimizer}"
+        learning_rate = self.finetune_learning_rate if self.finetune else self.learning_rate
+        return f"{prefix}{self.model_name}_lr{learning_rate}_bs{self.batch_size}_steps{self.num_steps}_loss{self.loss_function}_opt{self.optimizer}"
 
 
 class ColorizationDataset(Dataset):
@@ -104,28 +107,19 @@ def lr_lambda(current_step: int):
 
 
 def validate_model(model, test_dataloader, criterion):
-    torch.cuda.synchronize()
+    torch.cuda.empty_cache()
+    gc.collect()
     val_start_time = time.time()
     model.eval()
     val_loss = 0.0
     total_images = 0
     logged_images = 0
 
-    with torch.inference_mode():
+    with torch.no_grad():
         for l_chan, ab_chan in test_dataloader:
             with autocast():
                 outputs = model(l_chan)
-                l1_loss = criterion(outputs, ab_chan)
-
-                pred_rgb = lab_to_rgb(l_chan.detach(), outputs.detach())
-                target_rgb = lab_to_rgb(l_chan.detach(), ab_chan.detach())
-
-                pred_rgb = pred_rgb.permute(0, 3, 1, 2)
-                target_rgb = target_rgb.permute(0, 3, 1, 2)
-
-                perception_loss = perception_criterion(pred_rgb, target_rgb)
-
-                loss = l1_loss + settings.perception_loss_weight * perception_loss
+                loss = criterion(outputs, ab_chan)
 
             val_loss += loss.item()
             total_images += l_chan.size(0)
@@ -162,9 +156,8 @@ def validate_model(model, test_dataloader, criterion):
                     commit=False,
                 )
 
-                logged_images += num_samples
+                logged_images += l_chan.size(0)
 
-    torch.cuda.synchronize()
     avg_val_loss = val_loss / (total_images / settings.batch_size)
     val_time = time.time() - val_start_time
     print(
@@ -194,7 +187,6 @@ def train_model(
     step_times = []
     best_val_loss = float("inf")
     patience_counter = 0
-    perception_criterion = PerceptionLoss().to("cuda")
 
     train_iter = iter(train_dataloader)
 
@@ -209,18 +201,7 @@ def train_model(
 
         with autocast():
             outputs = model(l_chan)
-            l1_loss = criterion(outputs, ab_chan)
-
-            # Convert LAB to RGB for perception loss
-            pred_rgb = lab_to_rgb(l_chan, outputs)
-            target_rgb = lab_to_rgb(l_chan, ab_chan)
-
-            pred_rgb = pred_rgb.permute(0, 3, 1, 2)
-            target_rgb = target_rgb.permute(0, 3, 1, 2)
-
-            perception_loss = perception_criterion(pred_rgb, target_rgb)
-
-            loss = l1_loss + settings.perception_loss_weight * perception_loss
+            loss = criterion(outputs, ab_chan)
 
         scaler.scale(loss).backward()
 
@@ -231,7 +212,6 @@ def train_model(
         optimizer.zero_grad(set_to_none=True)
         scheduler.step()
 
-        torch.cuda.synchronize()
         step_end_time = time.time()
         step_times.append(step_end_time)
 
@@ -254,8 +234,6 @@ def train_model(
         print(
             f"Step [{step + 1}/{num_steps}], "
             f"Loss: {loss.item():.4f}, "
-            f"L1 Loss: {l1_loss.item():.4f}, "
-            f"Perception Loss: {perception_loss.item():.4f}, "
             f"Step Time: {step_time:.4f}s, "
             f"ETC: {etc_hours}h {etc_minutes}m, "
             f"Next Checkpoint: {time_to_next_checkpoint/60:.2f} minutes"
@@ -263,8 +241,6 @@ def train_model(
         wandb.log(
             {
                 "Training Loss": loss.item(),
-                "L1 Loss": l1_loss.item(),
-                "Perception Loss": perception_loss.item(),
                 "Step": step + 1,
                 "Step Time": step_time,
                 "Learning Rate": scheduler.get_last_lr()[0],
@@ -359,13 +335,13 @@ if __name__ == "__main__":
         print(f"Loading pre-trained model from {settings.pretrained_model_path}")
         model.load_state_dict(torch.load(settings.pretrained_model_path))
 
+    print(f"The model has {count_parameters(model):,} trainable parameters")
     wandb.watch(model)
 
     print(model)
 
     scaler = GradScaler()
     criterion = getattr(nn, settings.loss_function)()
-    perception_criterion = PerceptionLoss().to("cuda")
 
     if settings.finetune:
         optimizer = getattr(optim, settings.optimizer)(
