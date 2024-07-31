@@ -11,32 +11,27 @@ Figures 1.1-1.4 are for data exploration/visualization and help shed light on so
 
 Figure 1.1
 Selected images from the dataset and their individual red, blue, and green channels
-![Selected images with seperate RGB channels](figures\data_exploration\channels_RGB.png)
+![Selected images with seperate RGB channels](figures/data_exploration/channels_RGB.png)
 
 Figure 1.2
 Selected images from the dataset with their L, L and a, and L and b channels.
-![Selected images with seperate Lab channels](figures\data_exploration\channels_Lab.png)
+![Selected images with seperate Lab channels](figures/data_exploration/channels_Lab.png)
 
 Figure 1.3
 A frequency plot of pixel brightness for each RGB channel from the entire dataset
-![frequency plot of pixel brightness per RGB channel](figures\data_exploration\frequency_RGB.png)
+![frequency plot of pixel brightness per RGB channel](figures/data_exploration/frequency_RGB.png)
 
 Figure 1.4
 A frequency plot of pixel brightness for each Lab channel from the entire dataset
-![frequency plot of pixel brightness per Lab channel](figures\data_exploration\frequency_Lab.png)
+![frequency plot of pixel brightness per Lab channel](figures/data_exploration/frequency_Lab.png)
 
 Figure 1.5
 A frequency plot of image heights from the entire dataset
-![freqency plot of image heights](figures\data_exploration\frequency_height.png)
+![freqency plot of image heights](figures/data_exploration/frequency_height.png)
 
 Figure 1.6
 A frequency plot of image widths from the entire dataset
-![freqency plot of image widths](figures\data_exploration\frequency_width.png)
-
-Figure 2.1.1
-Figure 2.1.2
-Figure 2.2.1
-Figure 2.2.2
+![freqency plot of image widths](figures/data_exploration/frequency_width.png)
 
 ## Method
 
@@ -333,12 +328,12 @@ self.decoder = nn.Sequential(
         )
 ```
 
-**Batch Size:** 10\
-**Loss Function:** Huber Loss\
-**Optimizer:** Adam\
-**Validation Frequency:** 1000 steps\
-**Weight Decay:** 10e-5\
-**Learning Rate:** linear warmup from 7.0e-5 to 7.0e-4 over 100 steps followed by cosine decay. See below:
+- **Batch Size:** 10\
+- **Loss Function:** Huber Loss\
+- **Optimizer:** Adam\
+- **Validation Frequency:** 1000 steps\
+- **Weight Decay:** 10e-5\
+- **Learning Rate:** linear warmup from 7.0e-5 to 7.0e-4 over 100 steps followed by cosine decay. See below:
 
 ```python
 def lr_lambda(current_step: int):
