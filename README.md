@@ -2,41 +2,33 @@
 ## Introduction
 The goal of our project is image colorization, what we'll define as the process of generating a full color image from black-and-white information. To us, this idea is so compelling becuase of its generative nature. We wanted to do something more complex than classifying data or images. It would also be easy to create more data for our model to train on if we didn’t have enough to start with, since it is not too difficult to convert colored images into black-and-white images. We thought the project was cool because it lies at the intersection of technology and art. Some of the applications of such a project could potentially be color restoration of historical images, restoration of black and white films if you apply the model frame by frame. It could potentially be used as a tool for people with color-blindness, transforming the black-and-white images into images with more contrasting colors that makes it easier for people to process. It could also just be used as a tool for digital artists to play around with.
 
-Motivate: optical illusions
-
-
 ## Figures
 
 Figures 1.1-1.4 are for data exploration/visualization and help shed light on some later results.
 
 Figure 1.1
 Selected images from the dataset and their individual red, blue, and green channels
-![Selected images with seperate RGB channels](figures\data_exploration\channels_RGB.png)
+![Selected images with seperate RGB channels](figures/data_exploration/channels_RGB.png)
 
 Figure 1.2
 Selected images from the dataset with their L, L and a, and L and b channels.
-![Selected images with seperate Lab channels](figures\data_exploration\channels_Lab.png)
+![Selected images with seperate Lab channels](figures/data_exploration/channels_Lab.png)
 
 Figure 1.3
 A frequency plot of pixel brightness for each RGB channel from the entire dataset
-![frequency plot of pixel brightness per RGB channel](figures\data_exploration\frequency_RGB.png)
+![frequency plot of pixel brightness per RGB channel](figures/data_exploration/frequency_RGB.png)
 
 Figure 1.4
 A frequency plot of pixel brightness for each Lab channel from the entire dataset
-![frequency plot of pixel brightness per Lab channel](figures\data_exploration\frequency_Lab.png)
+![frequency plot of pixel brightness per Lab channel](figures/data_exploration/frequency_Lab.png)
 
 Figure 1.5
 A frequency plot of image heights from the entire dataset
-![freqency plot of image heights](figures\data_exploration\frequency_height.png)
+![freqency plot of image heights](figures/data_exploration/frequency_height.png)
 
 Figure 1.6
 A frequency plot of image widths from the entire dataset
-![freqency plot of image widths](figures\data_exploration\frequency_width.png)
-
-Figure 2.1.1
-Figure 2.1.2
-Figure 2.2.1
-Figure 2.2.2
+![freqency plot of image widths](figures/data_exploration/frequency_width.png)
 
 ## Method
 
@@ -333,12 +325,12 @@ self.decoder = nn.Sequential(
         )
 ```
 
-**Batch Size:** 10\
-**Loss Function:** Huber Loss\
-**Optimizer:** Adam\
-**Validation Frequency:** 1000 steps\
-**Weight Decay:** 10e-5\
-**Learning Rate:** linear warmup from 7.0e-5 to 7.0e-4 over 100 steps followed by cosine decay. See below:
+- **Batch Size:** 10\
+- **Loss Function:** Huber Loss\
+- **Optimizer:** Adam\
+- **Validation Frequency:** 1000 steps\
+- **Weight Decay:** 10e-5\
+- **Learning Rate:** linear warmup from 7.0e-5 to 7.0e-4 over 100 steps followed by cosine decay. See below:
 
 ```python
 def lr_lambda(current_step: int):
