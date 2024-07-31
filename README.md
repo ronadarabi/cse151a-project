@@ -2,9 +2,6 @@
 ## Introduction
 The goal of our project is image colorization, what we'll define as the process of generating a full color image from black-and-white information. To us, this idea is so compelling becuase of its generative nature. We wanted to do something more complex than classifying data or images. It would also be easy to create more data for our model to train on if we didn’t have enough to start with, since it is not too difficult to convert colored images into black-and-white images. We thought the project was cool because it lies at the intersection of technology and art. Some of the applications of such a project could potentially be color restoration of historical images, restoration of black and white films if you apply the model frame by frame. It could potentially be used as a tool for people with color-blindness, transforming the black-and-white images into images with more contrasting colors that makes it easier for people to process. It could also just be used as a tool for digital artists to play around with.
 
-Motivate: optical illusions
-
-
 ## Figures
 
 Figures 1.1-1.4 are for data exploration/visualization and help shed light on some later results.
