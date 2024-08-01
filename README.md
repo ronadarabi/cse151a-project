@@ -318,7 +318,10 @@ self.decoder = nn.Sequential(
             nn.Conv2d(16, 3, kernel_size=3, padding=1),
         )
 ```
+#### Values
 - **Paramaters:** 9,783,459
+- **Total Image Count**: 1012019
+- **Validation Image Count**: 1024
 - **Batch Size:** 10
 - **Loss Function:** Huber Loss
 - **Optimizer:** Adam
@@ -340,6 +343,9 @@ min_lr: float = learning_rate / 10
 warmup_steps: int = 1000
 ```
 
+#### Overview
+The ConvNet initializes model settings, then the `ImageFolderRGBDataset` class loads and processes images from a directory, converting them into grayscale and RGB formats for training. The ConvNet model is defined with an encoder-decoder architecture. The `train_model` function handles the training loop and model optimization. The `validate_model` function evaluates the model on the validation set and logs validation losses. The training process includes linear warmup from 7.0e-5 to 7.0e-4 over 100 steps and then cosine decay.
+
 ### Model 2: U-Net
 Our second model is U-Net that takes in a 512x512 tensor, the lightness (L) channel of a Lab colorspace formatted image, and outputs a 512x512x2 tensor, the a and b channels of the colored image, again in Lab colorspace.
 
@@ -349,6 +355,7 @@ Our second model is U-Net that takes in a 512x512 tensor, the lightness (L) chan
 Model definition is programmed in the following: [unet.py](unet.py)\
 Training is programmed in the following: [train_unet.py](train_unet.py)
 
+#### Values
 - **Parameters:** 4,409,858
 - **Batch Size:** 64
 - **Loss Function:** L1 Loss
@@ -358,6 +365,7 @@ Training is programmed in the following: [train_unet.py](train_unet.py)
 - **Early Stopping Patience:** 5 (early stop never triggered)
 - **Learning Rate:** linear warmup from 7.0e-5 to 7.0e-4, or 3.5e-4 for fine tuning, over 1000 steps followed by cosine decay. Same as ConvNet model
 
+#### U-Net Blocks
 ```python
 class UnetBlock(nn.Module):
     def __init__(
@@ -432,6 +440,7 @@ Training is programmed in the following: [train_unet.py](train_unet.py)
 
 Criss Cross attention is a modification of the standard transformer attention that only attends to the pixels in the same row and column as the pixel in question, which drastically reduces the memory requirements. After two iterations of attention the model has at least indirectly attended to every pixel.
 
+#### Values
 - **Parameters:** 54,980,593
 - **Batch Size:** 64
 - **Loss Function:** L1 Loss
@@ -441,6 +450,7 @@ Criss Cross attention is a modification of the standard transformer attention th
 - **Early Stopping Patience:** 5 (early stop never triggered)
 - **Learning Rate:** Linear warmup from 7.0e-5 to 7.0e-4 over 1000 steps followed by cosine decay. Same as ConvNet model. Maximum learning rate halved each epoch
 
+#### Criss Cross Attention
 ```python
 class CrissCrossAttention(nn.Module):
     def __init__(self, in_dim):
@@ -503,9 +513,24 @@ Discriminator is programmed in the following: [discriminator.py](discriminator.p
 Model definition is programmed in the following: [model.py](model.py) \
 Training is programmed in the following: [train_unet_gan.py](train_unet_gan.py)
 
+#### Values
 - **Generator Parameters:** 54,980,593
 - **Discriminator Paramaters:** 20,949654
+- **Total Image Count:** 991208
+- **Generator Learning Rate:** 2e-4
+- **Discriminator Learning Rate:** 2e-4
+- **Beta 1:** 0.5
+- **Beta 2:** 0.999
+- **Lambda L1:** 100.0
+- **Lambda GAN:** 1.0
+- **GAN Mode:** Vanilla
+- **L1 Loss Weight:** 100.0
+- **Validation Steps:** 1000
+- **Validation Image Count:** 24
+- **Number of Steps:** 30974
+- **Batch Size:** 32
 
+#### Discriminator
 The discriminator analyzes the input images at multiple scales and predicts whether the given image is 'fake' or 'real'.
 
 ```python
@@ -540,6 +565,7 @@ class MultiScaleDiscriminator(nn.Module):
         return result
 ```
 
+#### GAN Loss
 The gan loss takes the logits of discrimator and produces a loss that the generator can use improve its image outputs.
 ```python
 class GANLoss(nn.Module):
@@ -569,6 +595,9 @@ class GANLoss(nn.Module):
 ```
 
 The GAN model puts the generator (U-Net) and discriminator into a zero sum game. The generator attempts to generate images that fool the discriminator, and the discriminator attempts to classify images from the generator as 'fake'. The goal of this game is a more effective generator model that produces higher quality colorizations, however the gan architechure will not ever converge to a final solution and can sometimes suffer mode collapse. Because of this each n steps are logged and images of its output are saved so that it can be later decided which iteration of the generator model to use.
+
+#### Overview
+The GAN-based U-Net uses the `ColorizationDataset` class to load images and transforms them from RGB to LAB color space. The data is split into training and validation sets, and data loaders are created for batching. The `train_model` function carries out the training process on the model in `model.py`and updates the model weights. The `validate_model` function assesses performance on the validation set. Losses are tracked using the `GANLoss` class. 
 
 ## Results
 
