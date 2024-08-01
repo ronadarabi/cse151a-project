@@ -1,11 +1,8 @@
 .venv*
-l
-ab
 *.npy
 *.zip
-*net
 wandb
-new_data
+img_data
 *.pth
 __pycache__
 .vscode
