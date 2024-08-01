@@ -610,6 +610,13 @@ The GAN model puts the generator (U-Net) and discriminator into a zero sum game.
 #### Overview
 The GAN-based U-Net uses the `ColorizationDataset` class to load images and transforms them from RGB to LAB color space. The data is split into training and validation sets, and data loaders are created for batching. The `train_model` function carries out the training process on the model in `model.py`and updates weights using the `GANLoss` and `MultiScaleDiscriminator` classes. The `validate_model` function assesses performance on the validation set. Losses are tracked using the `GANLoss` class. 
 
+### Hyperparameter Tuning
+The parameters we primarily focused on were loss function, learning rate, and batch size. Below are links for each model. 
+
+[Model 3](https://wandb.ai/danielpwarren/unet-colorizer?nw=nwuserdanielpwarren)
+
+[Model 4](https://wandb.ai/danielpwarren/unet-gan-colorizer?nw=nwuserdanielpwarren)
+
 ## Results
 
 ### Model 1: Convolutional Neural Network
@@ -740,6 +747,9 @@ And these changes were very successful. As seen in figure 3.2.1, this model’s 
 In keeping with our hypothesis, for our third model we decided to add attention to the U-Net. This decision was motivated by the technique utilized in the image generation application, Stable Diffusion. Stable Diffusion implements transformer style attention layers to introduce text influence to its diffusion process. Traditional transformer attention is extremely effective but far to memory and compute hungry for our application. So, instead of traditional attention we implemented  criss-cross attention, a form of attention that only considers each row and column of pixels for each pixel it is applied to. This results in a significant reduction in time and space complexity from O(n^3) to O(n^2), making it an excellent compromise.
 As expected, this model was an improvement from the previous ones. From the first epoch, we were already observing more color than we had seen with previous models. And because of this promise we chose to train it for four entire epochs. The results were the best we had seen up to this point. Though, the model still had a tendency to color the images with mean/median colors, grays and sepias.
 
+For the fourth epoch, the validation curve began to rise above where it had previously been, placing it at a sweet spot between overfitting and underfitting. 
+
+
 ### Model 4: U-Net GAN with Criss-Cross Attention
 To address our model's tendency to converge to the median color representation we decided to implement a generative adversarial network (GAN) using our latest model, the U-Net with attention, as the generator. The generator and the discriminator work together to (hopefully) improve each other in a zero sum game. As a result, this style of model does not converge: it either consistently improves, or it experiences a mode collapse, a scenario where either the generator learns a bad representation it cant recover from or the discriminator becomes too accurate to provide meaningful information. In either of these cases, the output images become less grounded by the training data and thus less realistic. Also, if there exists a subset of the data that is mostly grayscale, the discriminator can learn that as a valid distribution, incentivising the generator to directly output its grayscale input.
 Not surprisingly, our models encountered both these issues. But by removing the grayscale images from our dataset, we were able to mostly mitigate the grayscale issue. And by microtuning the data, setting up checkpoints, and closely monitoring the model, we were able to mitigate the mode collapse issue for long enough for the model to learn a very effective coloring function. The generator and discriminator loss, as shown in the Results section, remained relatively constant, which is a good indication that both were learning and competing with each other well. This model was, by far, the most successful.
@@ -750,12 +760,12 @@ Through our research, trial, and error, we learned that the GAN is the most util
 ## Statement of Collaboration
 | Name   | Title | Contribution                                                                              |
 |--------|-------|-------------------------------------------------------------------------------------------|
-| Justin | Researcher and Collaborator      | Weekly coding meetings, Milestone 1 write-up                                       |
-| Rona   |       | Weekly coding meetings, Milestone 4 write-up, Github organization (submissions, merges, etc), planning meetings |
+| Justin | Researcher and Collaborator      | Weekly coding meetings, Milestone 1 and 4 write-up                                       |
+| Rona   |  Researcher and Collaborator      | Weekly coding meetings, Milestone 4 write-up, Github organization (submissions, merges, etc), planning meetings |
 | Diego  | Researcher and Collaborator      | Weekly coding meetings,  Milestone 2 comments, Milestone 3 and 4 write-ups                |
-| Jose   |       | Weekly coding meetings, Milestone 2 and 4 write-ups                                       |
-| Logan  |       | Weekly coding meetings, data exploration for larger data set, Milestone 4 write-up    |
-| Daniel | Programmer      | Weekly coding meetings, handled most of the coding                                        |
+| Jose   |   Researcher and Collaborator     | Weekly coding meetings, Milestone 2 and 4 write-ups                                       |
+| Logan  |  Programmer, Researcher and Collaborator      | Weekly coding meetings, data exploration for larger data set, Milestone 4 write-up    |
+| Daniel | Programmer, Leader      | Weekly coding meetings, handled most of the coding                                        |
 
 ## Previous Milestones 
 [Milestone 2](https://github.com/ronadarabi/cse151a-project/tree/Milestone2)
