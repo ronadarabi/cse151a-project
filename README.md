@@ -770,3 +770,4 @@ Through our research, trial, and error, we learned that the GAN is the most util
 [Milestone 2](https://github.com/ronadarabi/cse151a-project/tree/Milestone2)
 
 [Milestone 3](https://github.com/ronadarabi/cse151a-project/tree/Milestone3)
+=======
