@@ -724,8 +724,7 @@ The parameters we primarily focused on were loss function, learning rate, and ba
 
 ## Discussion
 ### Data Exploration
-Exploration
-The histogram of the LAB values shows that the a* and b* dimensions spike towards the middle, around 130 value. This indicates that the average is represented by that color, which is most likely to be sepia/grayscale since the center of the L*a*b plane is neutral/gray. It is important to note that some implementations use negative to positive values for this colorspace, while some only use positive values (as in our histogram). Nonetheless, the center of the plane is neutral/gray. 
+The histogram of the LAB values shows that for both the a and b channels, the frequency of brightness values spike in the middle around the value 130. This indicates that a sizeable amount of the data sits near this mean charcterized by a desatured sepia. As a result, if a model is to underfit the data, it is likely to become a sepia filter. It should also be noted that specifications for the Lab colorspace vary, and the cv2 implementation used in the data exploration is not the same as the implementation used for training.
 
 
 ### Preprocessing
