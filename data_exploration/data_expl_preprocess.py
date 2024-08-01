@@ -5,9 +5,13 @@ import multiprocessing as mp
 import gc
 from zipfile import ZipFile
 
+## Extract dataset archive
 with ZipFile('archive.zip', 'r') as zip:
     zip.extractall('archive/')
 
+# Read image, convert to RGB and Lab colorspaces, and calculate
+# frequencies of pixel brightness for each channel in both colorspaces.
+# Also find the shape of the image.
 def process_image(image_file):
     im_BGR = cv2.imread(str(image_file))
     if im_BGR is None:
@@ -30,6 +34,8 @@ def process_image(image_file):
 
     return counts_per_channel, sizes
 
+# Add pixel brightness frequencies to global running sum,
+# and add image shape to size array
 def update_totals(result):
     global counts_per_channel_tot, sizes, idx, failed_reads
     counts_per_channel, size = result
@@ -44,21 +50,25 @@ def update_totals(result):
         failed_reads += 1
 
 if __name__ == '__main__':
+    # get number of images
     input_dir = 'archive'
     input_path = Path(input_dir)
     num_images = sum(1 for _ in input_path.rglob('*') if _.is_file())
 
+    # initialize arrays, variables
     counts_per_channel_tot = np.zeros((6, 256), dtype=np.int64)
     sizes = np.zeros((num_images, 2), dtype=int)
     idx = 0
     failed_reads = 0
 
+    # loop through images
     pool = mp.Pool(mp.cpu_count() // 2)
     results = [pool.apply_async(process_image, args=(image_file,), callback=update_totals) for image_file in input_path.rglob('*') if image_file.is_file()]
 
     pool.close()
     pool.join()
 
+    # write arrays to disk
     np.savetxt('RGB_frequencies.csv', counts_per_channel_tot[0:3], delimiter=',')
     np.savetxt('Lab_frequencies.csv', counts_per_channel_tot[3:6], delimiter=',')
     np.savetxt('image_sizes.csv', sizes, delimiter=',')

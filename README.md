@@ -6,28 +6,22 @@ The goal of our project is image colorization, what we'll define as the process 
 
 Figures 1.1-1.4 are for data exploration/visualization and help shed light on some later results.
 
-Figure 1.1
-Selected images from the dataset and their individual red, blue, and green channels
+**Figure 1.1:** Selected images from the dataset and their individual red, blue, and green channels
 ![Selected images with seperate RGB channels](figures/data_exploration/channels_RGB.png)
 
-Figure 1.2
-Selected images from the dataset with their L, L and a, and L and b channels.
+**Figure 1.2:** Selected images from the dataset with their L, L and a, and L and b channels.
 ![Selected images with seperate Lab channels](figures/data_exploration/channels_Lab.png)
 
-Figure 1.3
-A frequency plot of pixel brightness for each RGB channel from the entire dataset
+**Figure 1.3:** A frequency plot of pixel brightness for each RGB channel from the entire dataset
 ![frequency plot of pixel brightness per RGB channel](figures/data_exploration/frequency_RGB.png)
 
-Figure 1.4
-A frequency plot of pixel brightness for each Lab channel from the entire dataset
+**Figure 1.4:** A frequency plot of pixel brightness for each Lab channel from the entire dataset
 ![frequency plot of pixel brightness per Lab channel](figures/data_exploration/frequency_Lab.png)
 
-Figure 1.5
-A frequency plot of image heights from the entire dataset
+**Figure 1.5:** A frequency plot of image heights from the entire dataset
 ![freqency plot of image heights](figures/data_exploration/frequency_height.png)
 
-Figure 1.6
-A frequency plot of image widths from the entire dataset
+**Figure 1.6:** A frequency plot of image widths from the entire dataset
 ![freqency plot of image widths](figures/data_exploration/frequency_width.png)
 
 ## Method
@@ -185,7 +179,7 @@ def plot_images(images, color_space, channels, titles, figsize=(30, 30)):
 ```
 
 ### Preprocessing
-We performed two preprocessing steps: resizing and grayscale image removal
+We performed two preprocessing steps, resizing and grayscale image removal, along with on the fly RGB to Lab colorspace conversion for some models.
 
 #### Resizing
 To resize the images, we created a script [resize.py](resize.py) which loops through all images in the dataset. If an image is too small to be cropped (has a dimension smaller than our target size, 512px), it is removed . Otherwise `center_crop(image, crop_size=(512, 512))`, as defined below, is called on the image. The result is written to the disk.
@@ -324,12 +318,12 @@ self.decoder = nn.Sequential(
             nn.Conv2d(16, 3, kernel_size=3, padding=1),
         )
 ```
-
-- **Batch Size:** 10\
-- **Loss Function:** Huber Loss\
-- **Optimizer:** Adam\
-- **Validation Frequency:** 1000 steps\
-- **Weight Decay:** 10e-5\
+- **Paramaters:** 9,783,459
+- **Batch Size:** 10
+- **Loss Function:** Huber Loss
+- **Optimizer:** Adam
+- **Validation Frequency:** 1000 steps
+- **Weight Decay:** 10e-5
 - **Learning Rate:** linear warmup from 7.0e-5 to 7.0e-4 over 100 steps followed by cosine decay. See below:
 
 ```python
@@ -347,27 +341,89 @@ warmup_steps: int = 1000
 ```
 
 ### Model 2: U-Net
-Our second model is a U-Net that takes in a 512x512 tensor, the lightness (L) channel of a Lab colorspace formatted image, and outputs a 512x512x2 tensor, the a and b channels of the colored image, again in Lab colorspace.
+Our second model is U-Net that takes in a 512x512 tensor, the lightness (L) channel of a Lab colorspace formatted image, and outputs a 512x512x2 tensor, the a and b channels of the colored image, again in Lab colorspace.
+
+![u-net diagram](figures/misc/unet.png)
+[Image Source](https://towardsdatascience.com/u-net-explained-understanding-its-image-segmentation-architecture-56e4842e313a)
 
 Model definition is programmed in the following: [unet.py](unet.py)\
 Training is programmed in the following: [train_unet.py](train_unet.py)
 
+- **Parameters:** 4,409,858
+
 ### Model 3: U-Net with Criss-Cross Attention
 
-Our third model is a U-Net with Criss-Cross Attention that takes in a 512x512 tensor, the lightness (L) channel of a Lab colorspace formatted image, and outputs a 512x512x2 tensor, the a and b channels of the colored image, again in Lab colorspace.
+Our third model is a 54,980,593 paramater U-Net with Criss-Cross Attention that takes in a 512x512 tensor, the lightness (L) channel of a Lab colorspace formatted image, and outputs a 512x512x2 tensor, the a and b channels of the colored image, again in Lab colorspace.
 
 Model definition is programmed in the following: [unet.py](unet.py)\
 (boolean argument to enable attention)\
 Training is programmed in the following: [train_unet.py](train_unet.py)
 
+
+```python
+class CrissCrossAttention(nn.Module):
+    def __init__(self, in_dim):
+        super().__init__()
+        self.channel_in = in_dim
+        self.channel_out = in_dim // 8
+        # Combined QKV projection
+        self.qkv_conv = nn.Conv2d(in_dim, 3 * self.channel_out, 1)
+
+        self.gamma = nn.Parameter(torch.zeros(1))
+        self.out_conv = nn.Conv2d(in_dim // 8, in_dim, 1)
+
+    def forward(self, x):
+        B, C, H, W = x.size()
+        
+        # Combined QKV projection
+        qkv = self.qkv_conv(x)
+        query, key, value = qkv.chunk(3, dim=1)
+        
+        # Horizontal attention
+        query_h = query.permute(0, 3, 1, 2).contiguous().view(B*W, self.channel_out, H)
+        key_h = key.permute(0, 3, 1, 2).contiguous().view(B*W, self.channel_out, H)
+        value_h = value.permute(0, 3, 1, 2).contiguous().view(B*W, self.channel_out, H)
+        
+        energy_h = torch.bmm(query_h, key_h.transpose(1, 2))
+        attn_h = F.softmax(energy_h, dim=-1)
+        out_h = torch.bmm(attn_h, value_h)
+        
+        # Vertical attention
+        query_v = query.permute(0, 2, 1, 3).contiguous().view(B*H, self.channel_out, W)
+        key_v = key.permute(0, 2, 1, 3).contiguous().view(B*H, self.channel_out, W)
+        value_v = value.permute(0, 2, 1, 3).contiguous().view(B*H, self.channel_out, W)
+        
+        energy_v = torch.bmm(query_v, key_v.transpose(1, 2))
+        attn_v = F.softmax(energy_v, dim=-1)
+        out_v = torch.bmm(attn_v, value_v)
+        
+        # Reshape and combine
+        out_h = out_h.view(B, W, self.channel_out, H).permute(0, 2, 3, 1)
+        out_v = out_v.view(B, H, self.channel_out, W).permute(0, 2, 1, 3)
+        
+        out = out_h + out_v
+        out = self.gamma * out
+        
+        # Project back to the original channel dimension
+        out = self.out_conv(out)
+        
+        return out + x
+```
+
 ### Model 4: U-Net GAN with Criss-Cross Attention
 
 Our third model is a U-Net GAN with Criss-Cross Attention that takes in a 512x512 tensor, the lightness (L) channel of a Lab colorspace formatted image, and outputs a 512x512x2 tensor, the a and b channels of the colored image, again in Lab colorspace.
+
+![gan diagram](figures/misc/gan.png)
+[Image Source](https://www.geeksforgeeks.org/generative-adversarial-network-gan/)
 
 GAN loss is programmed in the following: [ganloss.py](ganloss.py) \
 Discriminator is programmed in the following: [discriminator.py](discriminator.py) \
 Model definition is programmed in the following: [model.py](model.py) \
 Training is programmed in the following: [train_unet_gan.py](train_unet_gan.py)
+
+- **Generator Parameters:** 54,980,593
+- **Discriminator Paramaters:** 20,949654
 
 ## Results
 
