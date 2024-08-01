@@ -747,3 +747,8 @@ As expected, this model was an improvement from the previous ones. From the firs
 | Jose   |       | Weekly coding meetings, Milestone 2 and 4 write-ups                                       |
 | Logan  |       | Weekly coding meetings, data exploration for larger data set, Milestone 4 write-up    |
 | Daniel | Programmer      | Weekly coding meetings, handled most of the coding                                        |
+
+## Previous Milestones 
+[Milestone 2](https://github.com/ronadarabi/cse151a-project/tree/Milestone2)
+
+[Milestone 3](https://github.com/ronadarabi/cse151a-project/tree/Milestone3)
