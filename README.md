@@ -710,14 +710,28 @@ The GAN-based U-Net uses the `ColorizationDataset` class to load images and tr
 
 ## Discussion
 ### Data Exploration
+Exploration
+The histogram of the LAB values shows that the a* and b* dimensions spike towards the middle, around 130 value. This indicates that the average is represented by that color, which is most likely to be sepia/grayscale since the center of the L*a*b plane is neutral/gray. It is important to note that some implementations use negative to positive values for this colorspace, while some only use positive values (as in our histogram). Nonetheless, the center of the plane is neutral/gray. 
+
 
 ### Preprocessing
+We considered a resolution of 512x512 for the images because it offered the best balance between clear image resolution and preservation of samples in our datasets. The size of the images in the dataset varied greatly. Choosing a high resolution meant images would be clearer for visualization purposes, and it meant that the model would have more data to train on. More complex features could be learned, the model could learn from more context, and not as much information would be lost. However, having a high resolution also meant training would be slower, and we would have to remove images that had a smaller resolution since we didn’t want the empty space to influence the model. We were able to center-crop larger images rather than removing them. Although our model architecture can handle a varied size of input we standardized our images to avoid complications in our data loader during training. Since every image is the same size, this meant all images in a batch were the same size, so parallel processing could be used efficiently. Memory usage would be more stable, with no sudden increases or decreases in usage, since input size is consistent. We also did not have to spend too much time at training time resizing and padding images. We decided to remove grayscale images because not doing so would influence the model negatively. These images would encourage the model to keep images as black and white, instead of recoloring them as we wanted, so they were removed. We wanted to work with the LAB color space as using RGB would add an extra unneeded dimension in our prediction, since our output tensors would have to be Bx3x512x512 instead of Bx2x512x512, where B represents our batch size. Using LAB meant we only had to work with 2 color channels instead of 3. However, we did not have a way to efficiently convert the RGB images into Lab yet, so we decided to keep our images in RGB format for our first model. 
+
 
 ### Model 1: Convolutional Neural Network
+Because the project deals with images, a convolutional neural network was a clear first choice. Convolutional filters excel at picking up on patterns in image data, and chaining them with pooling filters allow for effective feature detection. This model performs a series of colvolutions and poolings, extracting features, then a series of transposed convolutions and unpoolings to reconstruct an image output. Essentially, the data is transformed from a large shallow tensor to a small deep tensor then back. For our model, we chose to use kernels of size 3x3 and pooling layers of size 2x2.
+For input/output colorspace, we chose to input grayscale information and have the model predict the red, green, and blue channels because it was the most obvious choice. However, constructing the model in this way gave it the responsibility of reconstructing the entire image, not just color, but structure too. As a result, the output images appeared fuzzy compared to their corresponding inputs. The model did, however, begin to learn a coloring function.
 
 ### Model 2: U-Net
+In order to rectify this blurring issue, we chose to make two major modifications to our model. The first of these changes was to switch from working in the RGB colorspace to the Lab colorspace. Instead we would feed in the L channel (luminance) and have the model predict the a and b channels. This not only reduced the number of predictions our model had to make, but also meant the constructed output image, consisting of the original L and predicted a and b, would retain the structure of the original L channel. In effect, the model no longer had to predict shapes.
+Unfortunately, it was not possible to just preprocess all of our data into Lab format as it would result in our dataset ballooning to ~700GB. So, instead we chose to convert the data on the fly from RGB to Lab before feeding it into the model. This way our model could reap the benefits while avoiding the storage issue. To decrease the downtime during these conversions, we wrote an efficient conversion function from RGB to L*a*b* that could be run on the GPU using pytorch. 
+The second major modification was to implement a U-Net type model. These are similar to a convolutional network, but in addition they have residual connections from each encoding layer to its corresponding decoding layer, preserving more information from the original image. 
+And these changes were very successful. As seen in figure 3.2.1, this model’s output images are just as sharp as the expected image. Unfortunately, though, the model was not so effective at coloring. It converged to an nonoptimal minima, somewhere near the mean of all pixel values. This model essentially became a very roundabout sepia filter.  It did, however, show some coloring ability, on occasion painting the sky somewhat blue and trees somewhat green. At this point we hypothesized introducing extra complexity might be the best way to encourage the model to predict a wider range of colors.
+
 
 ### Model 3: U-Net with Criss-Cross Attention
+In keeping with our hypothesis, for our third model we decided to add attention to the U-Net. This decision was motivated by the technique utilized in the image generation application, Stable Diffusion. Stable Diffusion implements transformer style attention layers to introduce text influence to its diffusion process. Traditional transformer attention is extremely effective but far to memory and compute hungry for our application. So, instead of traditional attention we implemented  criss-cross attention, a form of attention that only considers each row and column of pixels for each pixel it is applied to. This results in a significant reduction in time and space complexity from O(n^3) to O(n^2), making it an excellent compromise.
+As expected, this model was an improvement from the previous ones. From the first epoch, we were already observing more color than we had seen with previous models. And because of this promise we chose to train it for four entire epochs. The results were the best we had seen up to this point. Though, the model still had a tendency to color the images with mean/median colors, grays and sepias.
 
 ### Model 4: U-Net GAN with Criss-Cross Attention
 
@@ -727,9 +741,9 @@ The GAN-based U-Net uses the `ColorizationDataset` class to load images and tr
 ## Statement of Collaboration
 | Name   | Title | Contribution                                                                              |
 |--------|-------|-------------------------------------------------------------------------------------------|
-| Justin |       | Weekly coding meetings, write up for milestone 1                                          |
-| Rona   |       | Weekly coding meetings,                                                                   |
-| Diego  |       | Weekly coding meetings,                                                                   |
-| Jose   |       | Weekly coding meetings, write up for milestone 2, intro and preprocessing for milestone 4 |
-| Logan  |       | Weekly coding meetings, data exploration for larger data set, write up for milestone 4    |
-| Daniel |       | Weekly coding meetings, handled most of the coding                                        |
+| Justin |       | Weekly coding meetings, Milestone 1 write-up                                       |
+| Rona   |       | Weekly coding meetings, Milestone 4 write-up, Github organization (submissions, merges, etc), planning meetings |
+| Diego  | Researcher and Collaborator      | Weekly coding meetings,  Milestone 2 comments, Milestone 3 and 4 write-ups                |
+| Jose   |       | Weekly coding meetings, Milestone 2 and 4 write-ups                                       |
+| Logan  |       | Weekly coding meetings, data exploration for larger data set, Milestone 4 write-up    |
+| Daniel | Programmer      | Weekly coding meetings, handled most of the coding                                        |
