@@ -272,7 +272,8 @@ def rgb_to_lab(rgb_image: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
 ### Model 1: Convolutional Neural Network
 Our first model is a standard convolutional neural network, commonly refered to as a CNN or ConvNet, which takes as input a 512x512 tensor, a grayscale image, and outputs a 512x512x3 tensor, the red, green, and blue channels of a colorized image.
 
-The model definition and training was programmed in the following script: [train_convnet.py](train_convnet.py).
+A walkthrough of the model and training can be found here: [train_covnet.ipynb](train_convnet.ipynb).\
+The model definition and training script can be found here: [train_convnet.py](training_scripts/train_convnet.py).
 
 The encoder was defined as follows:
 ```python
@@ -346,8 +347,9 @@ Our second model is U-Net that takes in a 512x512 tensor, the lightness (L) chan
 ![u-net diagram](figures/misc/unet.png)
 [Image Source](https://towardsdatascience.com/u-net-explained-understanding-its-image-segmentation-architecture-56e4842e313a)
 
-Model definition is programmed in the following: [unet.py](unet.py)\
-Training is programmed in the following: [train_unet.py](train_unet.py)
+A walkthrough of the model and training can be found here: [train_unet.ipynb](train_convnet.ipynb).\
+A standalone model definition can be found here: [unet.py](training_scripts/unet.py).\
+The training script can be found here: [train_unet.py](training_scripts/train_unet.py).
 
 - **Parameters:** 4,409,858
 - **Batch Size:** 64
@@ -426,9 +428,10 @@ class UnetBlock(nn.Module):
 
 Our third model is a U-Net with Criss-Cross Attention that takes in a 512x512 tensor, the lightness (L) channel of a Lab colorspace formatted image, and outputs a 512x512x2 tensor, the a and b channels of the colored image, again in Lab colorspace.
 
-Model definition is programmed in the following: [unet.py](unet.py)\
-(boolean argument to enable attention)\
-Training is programmed in the following: [train_unet.py](train_unet.py)
+A walkthrough of the model and training can be found here: [train_unet.ipynb](train_convnet.ipynb).\
+A standalone model definition can be found here: [unet.py](training_scripts/unet.py).\
+The training script can be found here: [train_unet.py](training_scripts/train_unet.py).\
+(same files as previous model, boolean argument to enable attention)
 
 Criss Cross attention is a modification of the standard transformer attention that only attends to the pixels in the same row and column as the pixel in question, which drastically reduces the memory requirements. After two iterations of attention the model has at least indirectly attended to every pixel.
 
@@ -498,10 +501,11 @@ Our third model is a U-Net GAN with Criss-Cross Attention that takes in a 512x51
 ![gan diagram](figures/misc/gan.png)
 [Image Source](https://www.geeksforgeeks.org/generative-adversarial-network-gan/)
 
-GAN loss is programmed in the following: [ganloss.py](ganloss.py) \
-Discriminator is programmed in the following: [discriminator.py](discriminator.py) \
-Model definition is programmed in the following: [model.py](model.py) \
-Training is programmed in the following: [train_unet_gan.py](train_unet_gan.py)
+A walkthrough of the model and training can be found here: [train_unet_gan.ipynb](train_unet_gan.ipynb).\
+GAN loss is programmed in the following: [ganloss.py](training_scripts/ganloss.py) \
+Discriminator is programmed in the following: [discriminator.py](training_scripts/discriminator.py) \
+Model definition is programmed in the following: [model.py](training_scripts/model.py) \
+Training is programmed in the following: [train_unet_gan.py](training_scripts/train_unet_gan.py)
 
 - **Generator Parameters:** 54,980,593
 - **Discriminator Paramaters:** 20,949654
