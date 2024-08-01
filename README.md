@@ -350,6 +350,7 @@ The ConvNet initializes model settings, then the `ImageFolderRGBDataset` class
 ### Model 2: U-Net
 Our second model is U-Net that takes in a 512x512 tensor, the lightness (L) channel of a Lab colorspace formatted image, and outputs a 512x512x2 tensor, the a and b channels of the colored image, again in Lab colorspace.
 
+**Figure 2.1:** U-Net architecture visualization 
 ![u-net diagram](figures/misc/unet.png)
 [Image Source](https://towardsdatascience.com/u-net-explained-understanding-its-image-segmentation-architecture-56e4842e313a)
 
@@ -513,6 +514,7 @@ This model utilizes the `CrissCrossAttention` class to apply attention to it to 
 
 Our third model is a U-Net GAN with Criss-Cross Attention that takes in a 512x512 tensor, the lightness (L) channel of a Lab colorspace formatted image, and outputs a 512x512x2 tensor, the a and b channels of the colored image, again in Lab colorspace.
 
+**Figure 2.2:** How a GAN works
 ![gan diagram](figures/misc/gan.png)
 [Image Source](https://www.geeksforgeeks.org/generative-adversarial-network-gan/)
 
