@@ -27,7 +27,7 @@ Figures 1.1-1.4 are for data exploration/visualization and help shed light on so
 ## Method
 
 ### Data Exploration
-Our data exploration began with running [data_expl_preprocess.py](data_exploration/data_expl_preprocess.py). This script extracts the dataset using ZipFile, then, using a multiprocessing pool, loops through all images in the dataset and calls `process_image(image_file)` with a callback to `update_totals(result)`. The `process_image(image_file)` function loads one image into memory, converts it to RGB and Lab colorspace, and calculates the freqeuency of each pixel brightness for each channel and both colorspaces. Then, it returns this frequency table along with the dimensions of the image.
+Our data exploration began with running [data_expl_preprocess.py](data_exploration/data_expl_preprocess.py). This script extracts the dataset using ZipFile, then, using a multiprocessing pool, loops through all images in the dataset and calls `process_image(image_file)` with a callback to `update_totals(result)`. The `process_image(image_file)` function loads one image into memory, converts it to RGB and Lab colorspace, and calculates the freqeuency of each pixel brightness for each channel and both colorspaces. Then, it returns this frequency table along with the dimensions of the image. The same process is also descibed in the notebook [data_expl_preprocess.ipynb](data_exploration/data_expl_preprocess.ipynb), but without multithreading.
 
 ```python
 def process_image(image_file):
@@ -72,7 +72,7 @@ def update_totals(result):
 
 In the end, the script produces the csv files [RGB_frequencies.csv](data_exploration/RGB_frequencies.csv), [Lab_frequencies.csv](data_exploration/Lab_frequencies.csv), and [image_sizes.csv](data_exploration/image_sizes.csv).
 
-These csv files were then loaded in the [data_exploration.ipynb notebook](data_exploration/data_exploration.ipynb), in which we use the function `calculate_stats` to descibe the two frequency datasets.
+These csv files were then loaded in the [data_exploration.ipynb notebook](data_exploration/data_exploration.ipynb), in which we use the function `calculate_stats(frequencies)` to descibe the two frequency datasets.
 
 ```python
 def calculate_stats(frequencies):
@@ -221,7 +221,7 @@ def is_grayscale_fast(image_path):
 Then, after reviewing the list, we used the bash command `xargs -a {output_file} rm` to remove the grayscale images. Note: `{output_file}` is the path to the outputed list of grayscale images.
 
 #### On the Fly RGB to LAB
-To convert images from the RGB colorspace to Lab colorspace, we developed a function `rgb_to_lab(rgb_image: torch.Tensor)` that leverges PyTorch's optimized tensor math
+To convert images from the RGB colorspace to Lab colorspace, we developed a function `rgb_to_lab(rgb_image: torch.Tensor)` that leverges PyTorch's optimized tensor operations. The algorithm itself was adapted from [skimage.color.rgb2lab()](https://scikit-image.org/docs/stable/api/skimage.color.html#skimage.color.rgb2lab).
 
 ```python
 def rgb_to_lab(rgb_image: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
@@ -272,7 +272,8 @@ def rgb_to_lab(rgb_image: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
 ### Model 1: Convolutional Neural Network
 Our first model is a standard convolutional neural network, commonly refered to as a CNN or ConvNet, which takes as input a 512x512 tensor, a grayscale image, and outputs a 512x512x3 tensor, the red, green, and blue channels of a colorized image.
 
-The model definition and training was programmed in the following script: [train_convnet.py](train_convnet.py).
+A walkthrough of the model and training can be found here: [train_covnet.ipynb](train_convnet.ipynb).\
+The model definition and training script can be found here: [train_convnet.py](training_scripts/train_convnet.py).
 
 The encoder was defined as follows:
 ```python
@@ -318,13 +319,16 @@ self.decoder = nn.Sequential(
             nn.Conv2d(16, 3, kernel_size=3, padding=1),
         )
 ```
+#### Values
 - **Paramaters:** 9,783,459
+- **Total Image Count**: 1012019
+- **Validation Image Count**: 1024
 - **Batch Size:** 10
 - **Loss Function:** Huber Loss
 - **Optimizer:** Adam
 - **Validation Frequency:** 1000 steps
 - **Weight Decay:** 10e-5
-- **Learning Rate:** linear warmup from 7.0e-5 to 7.0e-4 over 100 steps followed by cosine decay. See below:
+- **Learning Rate:** linear warmup from 7.0e-5 to 7.0e-4 over 1000 steps followed by cosine decay. See below:
 
 ```python
 def lr_lambda(current_step: int):
@@ -340,26 +344,116 @@ min_lr: float = learning_rate / 10
 warmup_steps: int = 1000
 ```
 
+#### Overview
+The ConvNet initializes model settings, then the `ImageFolderRGBDataset` class loads and processes images from a directory, converting them into grayscale and RGB formats for training. The ConvNet model is defined with an encoder-decoder architecture. The `train_model` function handles the training loop and model optimization. The `validate_model` function evaluates the model on the validation set and logs validation losses. The training process includes linear warmup from 7.0e-5 to 7.0e-4 over 100 steps and then cosine decay.
+
 ### Model 2: U-Net
 Our second model is U-Net that takes in a 512x512 tensor, the lightness (L) channel of a Lab colorspace formatted image, and outputs a 512x512x2 tensor, the a and b channels of the colored image, again in Lab colorspace.
 
 ![u-net diagram](figures/misc/unet.png)
 [Image Source](https://towardsdatascience.com/u-net-explained-understanding-its-image-segmentation-architecture-56e4842e313a)
 
-Model definition is programmed in the following: [unet.py](unet.py)\
-Training is programmed in the following: [train_unet.py](train_unet.py)
+A walkthrough of the model and training can be found here: [train_unet.ipynb](train_convnet.ipynb).\
+A standalone model definition can be found here: [unet.py](training_scripts/unet.py).\
+The training script can be found here: [train_unet.py](training_scripts/train_unet.py).
 
+#### Values
 - **Parameters:** 4,409,858
+- **Batch Size:** 64
+- **Loss Function:** L1 Loss
+- **Optimizer:** AdamW
+- **Validation Frequency:** 1000 steps
+- **Weight Decay:** 10e-5
+- **Early Stopping Patience:** 5 (early stop never triggered)
+- **Learning Rate:** linear warmup from 7.0e-5 to 7.0e-4, or 3.5e-4 for fine tuning, over 1000 steps followed by cosine decay. Same as ConvNet model
+
+#### U-Net Blocks
+```python
+class UnetBlock(nn.Module):
+    def __init__(
+        self,
+        nf,
+        ni,
+        submodule=None,
+        input_c=None,
+        dropout=False,
+        innermost=False,
+        outermost=False,
+        use_attention=True,
+    ):
+        super().__init__()
+        self.outermost = outermost
+        self.use_attention = use_attention
+        if input_c is None:
+            input_c = nf
+        downconv = nn.Conv2d(
+            input_c, ni, kernel_size=4, stride=2, padding=1, bias=False
+        )
+        downrelu = nn.LeakyReLU(0.2, True)
+        downnorm = nn.BatchNorm2d(ni)
+        uprelu = nn.ReLU(True)
+        upnorm = nn.BatchNorm2d(nf)
+
+        if outermost:
+            upconv = nn.ConvTranspose2d(ni * 2, nf, kernel_size=4, stride=2, padding=1)
+            down = [downconv]
+            up = [uprelu, upconv, nn.Tanh()]
+            model = down + [submodule] + up
+        elif innermost:
+            upconv = nn.ConvTranspose2d(
+                ni, nf, kernel_size=4, stride=2, padding=1, bias=False
+            )
+            down = [downrelu, downconv]
+            up = [uprelu, upconv, upnorm]
+            model = down + up
+        else:
+            upconv = nn.ConvTranspose2d(
+                ni * 2, nf, kernel_size=4, stride=2, padding=1, bias=False
+            )
+            down = [downrelu, downconv, downnorm]
+            up = [uprelu, upconv, upnorm]
+            if dropout:
+                up += [nn.Dropout(0.5)]
+            model = down + [submodule] + up
+
+        self.model = nn.Sequential(*model)
+        # Apply attention module if needed, except for the outermost layer and when the number of filters is too high
+        self.use_attention_this_layer = not outermost and nf <= 512 and use_attention
+        if self.use_attention_this_layer:
+            self.attention = CrissCrossAttention(nf)
+
+    def forward(self, x):
+        if self.outermost:
+            return self.model(x)
+        else:
+            output = self.model(x)
+            if self.use_attention_this_layer:
+                output = self.attention(output)
+            return torch.cat([x, output], 1)
+```
 
 ### Model 3: U-Net with Criss-Cross Attention
 
-Our third model is a 54,980,593 paramater U-Net with Criss-Cross Attention that takes in a 512x512 tensor, the lightness (L) channel of a Lab colorspace formatted image, and outputs a 512x512x2 tensor, the a and b channels of the colored image, again in Lab colorspace.
+Our third model is a U-Net with Criss-Cross Attention that takes in a 512x512 tensor, the lightness (L) channel of a Lab colorspace formatted image, and outputs a 512x512x2 tensor, the a and b channels of the colored image, again in Lab colorspace.
 
-Model definition is programmed in the following: [unet.py](unet.py)\
-(boolean argument to enable attention)\
-Training is programmed in the following: [train_unet.py](train_unet.py)
+A walkthrough of the model and training can be found here: [train_unet.ipynb](train_convnet.ipynb).\
+A standalone model definition can be found here: [unet.py](training_scripts/unet.py).\
+The training script can be found here: [train_unet.py](training_scripts/train_unet.py).\
+(same files as previous model, boolean argument to enable attention)
 
+Criss Cross attention is a modification of the standard transformer attention that only attends to the pixels in the same row and column as the pixel in question, which drastically reduces the memory requirements. After two iterations of attention the model has at least indirectly attended to every pixel.
 
+#### Values
+- **Parameters:** 54,980,593
+- **Batch Size:** 64
+- **Loss Function:** L1 Loss
+- **Optimizer:** AdamW
+- **Validation Frequency:** 1000 steps
+- **Weight Decay:** 10e-5
+- **Early Stopping Patience:** 5 (early stop never triggered)
+- **Learning Rate:** Linear warmup from 7.0e-5 to 7.0e-4 over 1000 steps followed by cosine decay. Same as ConvNet model. Maximum learning rate halved each epoch
+
+#### Criss Cross Attention
 ```python
 class CrissCrossAttention(nn.Module):
     def __init__(self, in_dim):
@@ -417,13 +511,97 @@ Our third model is a U-Net GAN with Criss-Cross Attention that takes in a 512x51
 ![gan diagram](figures/misc/gan.png)
 [Image Source](https://www.geeksforgeeks.org/generative-adversarial-network-gan/)
 
-GAN loss is programmed in the following: [ganloss.py](ganloss.py) \
-Discriminator is programmed in the following: [discriminator.py](discriminator.py) \
-Model definition is programmed in the following: [model.py](model.py) \
-Training is programmed in the following: [train_unet_gan.py](train_unet_gan.py)
+A walkthrough of the model and training can be found here: [train_unet_gan.ipynb](train_unet_gan.ipynb).\
+GAN loss is programmed in the following: [ganloss.py](training_scripts/ganloss.py) \
+Discriminator is programmed in the following: [discriminator.py](training_scripts/discriminator.py) \
+Model definition is programmed in the following: [model.py](training_scripts/model.py) \
+Training is programmed in the following: [train_unet_gan.py](training_scripts/train_unet_gan.py)
 
+#### Values
 - **Generator Parameters:** 54,980,593
 - **Discriminator Paramaters:** 20,949654
+- **Total Image Count:** 991208
+- **Generator Learning Rate:** 2e-4
+- **Discriminator Learning Rate:** 2e-4
+- **Beta 1:** 0.5
+- **Beta 2:** 0.999
+- **Lambda L1:** 100.0
+- **Lambda GAN:** 1.0
+- **GAN Mode:** Vanilla
+- **L1 Loss Weight:** 100.0
+- **Validation Steps:** 1000
+- **Validation Image Count:** 24
+- **Number of Steps:** 30974
+- **Batch Size:** 32
+
+#### Discriminator
+The discriminator analyzes the input images at multiple scales and predicts whether the given image is 'fake' or 'real'.
+
+```python
+class MultiScaleDiscriminator(nn.Module):
+    def __init__(self, input_c, num_filters=64, n_layers=5, num_D=3):
+        super().__init__()
+        self.num_D = num_D
+        self.n_layers = n_layers
+
+        for i in range(num_D):
+            netD = Discriminator(input_c, num_filters, n_layers)
+            setattr(self, f"layer_{i}", netD)
+
+        self.downsample = nn.AvgPool2d(
+            3, stride=2, padding=[1, 1], count_include_pad=False
+        )
+
+    def singleD_forward(self, model, input):
+        result = [input]
+        for i in range(len(model)):
+            result.append(model[i](result[-1]))
+        return result[1:]
+
+    def forward(self, input):
+        result = []
+        input_downsampled = input
+        for i in range(self.num_D):
+            model = getattr(self, f"layer_{i}")
+            result.append(self.singleD_forward(model.model, input_downsampled))
+            if i != (self.num_D - 1):
+                input_downsampled = self.downsample(input_downsampled)
+        return result
+```
+
+#### GAN Loss
+The gan loss takes the logits of discrimator and produces a loss that the generator can use improve its image outputs.
+```python
+class GANLoss(nn.Module):
+    def __init__(self, gan_mode="vanilla", real_label=0.9, fake_label=0.1):
+        super().__init__()
+        self.register_buffer("real_label", torch.tensor(real_label))
+        self.register_buffer("fake_label", torch.tensor(fake_label))
+        self.gan_mode = gan_mode
+        if gan_mode == "vanilla":
+            self.loss = nn.BCEWithLogitsLoss()
+        elif gan_mode == "lsgan":
+            self.loss = nn.MSELoss()
+        else:
+            raise NotImplementedError(f"gan_mode {gan_mode} not implemented")
+
+    def get_labels(self, preds, target_is_real):
+        if target_is_real:
+            labels = self.real_label
+        else:
+            labels = self.fake_label
+        return labels.expand_as(preds)
+
+    def __call__(self, prediction, target_is_real):
+        target_tensor = self.get_labels(prediction, target_is_real)
+        loss = self.loss(prediction, target_tensor)
+        return loss
+```
+
+The GAN model puts the generator (U-Net) and discriminator into a zero sum game. The generator attempts to generate images that fool the discriminator, and the discriminator attempts to classify images from the generator as 'fake'. The goal of this game is a more effective generator model that produces higher quality colorizations, however the gan architechure will not ever converge to a final solution and can sometimes suffer mode collapse. Because of this each n steps are logged and images of its output are saved so that it can be later decided which iteration of the generator model to use.
+
+#### Overview
+The GAN-based U-Net uses the `ColorizationDataset` class to load images and transforms them from RGB to LAB color space. The data is split into training and validation sets, and data loaders are created for batching. The `train_model` function carries out the training process on the model in `model.py`and updates weights using the `GANLoss` and `MultiScaleDiscriminator` classes. The `validate_model` function assesses performance on the validation set. Losses are tracked using the `GANLoss` class. 
 
 ## Results
 
