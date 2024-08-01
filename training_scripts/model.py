@@ -12,8 +12,8 @@ class MainModel(nn.Module):
     def __init__(
         self,
         net_G=None,
-        lr_G=1e-4,
-        lr_D=4e-4,
+        lr_G=2e-4,
+        lr_D=2e-4,
         beta1=0.5,
         beta2=0.999,
         lambda_L1=100.0,
