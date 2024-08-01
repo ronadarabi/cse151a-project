@@ -1,10 +1,8 @@
 .venv*
-l
-ab
 *.npy
 *.zip
 wandb
-new_data
-*.pth
-!model_final.pth
+img_data
 __pycache__
+.vscode
+*.jpg
