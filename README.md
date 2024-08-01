@@ -601,7 +601,7 @@ class GANLoss(nn.Module):
 The GAN model puts the generator (U-Net) and discriminator into a zero sum game. The generator attempts to generate images that fool the discriminator, and the discriminator attempts to classify images from the generator as 'fake'. The goal of this game is a more effective generator model that produces higher quality colorizations, however the gan architechure will not ever converge to a final solution and can sometimes suffer mode collapse. Because of this each n steps are logged and images of its output are saved so that it can be later decided which iteration of the generator model to use.
 
 #### Overview
-The GAN-based U-Net uses the `ColorizationDataset` class to load images and transforms them from RGB to LAB color space. The data is split into training and validation sets, and data loaders are created for batching. The `train_model` function carries out the training process on the model in `model.py`and updates the model weights. The `validate_model` function assesses performance on the validation set. Losses are tracked using the `GANLoss` class. 
+The GAN-based U-Net uses the `ColorizationDataset` class to load images and transforms them from RGB to LAB color space. The data is split into training and validation sets, and data loaders are created for batching. The `train_model` function carries out the training process on the model in `model.py`and updates weights using the `GANLoss` and `MultiScaleDiscriminator` classes. The `validate_model` function assesses performance on the validation set. Losses are tracked using the `GANLoss` class. 
 
 ## Results
 
