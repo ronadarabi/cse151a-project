@@ -750,7 +750,7 @@ Through our research, trial, and error, we learned that the GAN is the most util
 ## Statement of Collaboration
 | Name   | Title | Contribution                                                                              |
 |--------|-------|-------------------------------------------------------------------------------------------|
-| Justin |       | Weekly coding meetings, Milestone 1 write-up                                       |
+| Justin | Researcher and Collaborator      | Weekly coding meetings, Milestone 1 write-up                                       |
 | Rona   |       | Weekly coding meetings, Milestone 4 write-up, Github organization (submissions, merges, etc), planning meetings |
 | Diego  | Researcher and Collaborator      | Weekly coding meetings,  Milestone 2 comments, Milestone 3 and 4 write-ups                |
 | Jose   |       | Weekly coding meetings, Milestone 2 and 4 write-ups                                       |
