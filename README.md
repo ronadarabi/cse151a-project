@@ -182,7 +182,7 @@ def plot_images(images, color_space, channels, titles, figsize=(30, 30)):
 We performed two preprocessing steps, resizing and grayscale image removal, along with on the fly RGB to Lab colorspace conversion for some models.
 
 #### Resizing
-To resize the images, we created a script [resize.py](resize.py) which loops through all images in the dataset. If an image is too small to be cropped (has a dimension smaller than our target size, 512px), it is removed . Otherwise `center_crop(image, crop_size=(512, 512))`, as defined below, is called on the image. The result is written to the disk.
+To resize the images, we created a script [resize.py](training_scripts/resize.py) which loops through all images in the dataset. If an image is too small to be cropped (has a dimension smaller than our target size, 512px), it is removed . Otherwise `center_crop(image, crop_size=(512, 512))`, as defined below, is called on the image. The result is written to the disk. We also implemented this functionality, along with the dataset download and extraction, in the notebook [preprocess.ipynb](preprocess.ipynb).
 
 ```python
 def center_crop(image, crop_size=(512, 512)):
@@ -194,7 +194,7 @@ def center_crop(image, crop_size=(512, 512)):
 ```
 
 #### Grayscale Image Removal
-To remove grayscale images from the dataset, we created a script [grayscale.py](grayscale.py) which loops though the entire dataset using a multiprocessing pool, and uses the following function `is_grayscale_fast(image_path)` to find grayscale images and output a list of their paths to a text file.
+To remove grayscale images from the dataset, we created a script [grayscale.py](training_scripts/grayscale.py) which loops though the entire dataset using a multiprocessing pool, and uses the following function `is_grayscale_fast(image_path)` to find grayscale images and output a list of their paths to a text file. We also implemented this functionality in the notebook [find_grayscale.ipynb](find_grayscale.ipynb).
 
 ```python
 def is_grayscale_fast(image_path):
