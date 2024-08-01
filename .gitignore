@@ -3,7 +3,6 @@
 *.zip
 wandb
 img_data
-*.pth
 __pycache__
 .vscode
 *.jpg
