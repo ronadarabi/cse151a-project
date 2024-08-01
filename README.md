@@ -1,6 +1,6 @@
 # CSE 151A Group Project | Image Colorization
 ## Introduction
-The goal of our project is image colorization, what we'll define as the process of generating a full color image from black-and-white information. To us, this idea is so compelling becuase of its generative nature. We wanted to do something more complex than classifying data or images. It would also be easy to create more data for our model to train on if we didn’t have enough to start with, since it is not too difficult to convert colored images into black-and-white images. We thought the project was cool because it lies at the intersection of technology and art. Some of the applications of such a project could potentially be color restoration of historical images, restoration of black and white films if you apply the model frame by frame. It could potentially be used as a tool for people with color-blindness, transforming the black-and-white images into images with more contrasting colors that makes it easier for people to process. It could also just be used as a tool for digital artists to play around with.
+The goal of our project is image colorization, what we'll define as the process of generating a full color image from black-and-white information. To us, this idea is so compelling becuase of its generative nature. We wanted to do something more complex than classifying data or images. It would also be easy to create more data for our model to train on if we didn’t have enough to start with, since it is not too difficult to convert colored images into black-and-white images. We thought the project was cool because it lies at the intersection of technology and art. Some of the applications of such a project could potentially be color restoration of historical images, restoration of black and white films if you apply the model frame by frame. It could also just be used as a tool for digital artists to play around with.
 
 ## Figures
 
@@ -431,6 +431,8 @@ class UnetBlock(nn.Module):
                 output = self.attention(output)
             return torch.cat([x, output], 1)
 ```
+#### Overview 
+The model uses the `ColorizationDataset` class loads and converts the images to the Lab* color space. The  `FastColorizationDataLoader` uses CUDA for asynchronous data loading. The `train_model` function handles the training loop that uses `GradScaler` for precision training. A scheduler utilizes warmup and cosine decay to adjust the learning rate.
 
 ### Model 3: U-Net with Criss-Cross Attention
 
@@ -503,6 +505,9 @@ class CrissCrossAttention(nn.Module):
         
         return out + x
 ```
+
+### Overview 
+This model utilizes the `CrissCrossAttention` class to apply attention to it to capture more dependencies. The `UnetBlock` class makes the encoder-decoder structure and stacks these blocks for the model. The  `ColorizationDataset` class is a DataLoader that converts the images into Lab* format from RGB. The `FastColorizationDataLoader` class is a similar class that instead uses CUDA for asynchronous data loading. The training loop includes learning rate scheduling, precision training with `GradScaler`, and early stopping. The `validate_model` and `train_model` functions control training and validation.
 
 ### Model 4: U-Net GAN with Criss-Cross Attention
 
@@ -734,8 +739,8 @@ In keeping with our hypothesis, for our third model we decided to add attention 
 As expected, this model was an improvement from the previous ones. From the first epoch, we were already observing more color than we had seen with previous models. And because of this promise we chose to train it for four entire epochs. The results were the best we had seen up to this point. Though, the model still had a tendency to color the images with mean/median colors, grays and sepias.
 
 ### Model 4: U-Net GAN with Criss-Cross Attention
-
-### Model 4.5: U-Net GAN with Criss-Cross Attention
+To address our model's tendency to converge to the median color representation we decided to implement a generative adversarial network (GAN) using our latest model, the U-Net with attention, as the generator. The generator and the discriminator work together to (hopefully) improve each other in a zero sum game. As a result, this style of model does not converge: it either consistently improves, or it experiences a mode collapse, a scenario where either the generator learns a bad representation it cant recover from or the discriminator becomes too accurate to provide meaningful information. In either of these cases, the output images become less grounded by the training data and thus less realistic. Also, if there exists a subset of the data that is mostly grayscale, the discriminator can learn that as a valid distribution, incentivising the generator to directly output its grayscale input.
+Not surprisingly, our models encountered both these issues. But by removing the grayscale images from our dataset, we were able to mostly mitigate the grayscale issue. And by microtuning the data, setting up checkpoints, and closely monitoring the model, we were able to mitigate the mode collapse issue for long enough for the model to learn a very effective coloring function. The generator and discriminator loss, as shown in the Results section, remained relatively constant, which is a good indication that both were learning and competing with each other well. This model was, by far, the most successful.
 
 ## Conclusion
 ## Statement of Collaboration
